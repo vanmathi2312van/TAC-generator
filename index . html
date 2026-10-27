@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Three Address Code Generator</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #141e30, #243b55);
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    background: white;
+    width: 100%;
+    max-width: 650px;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 8px 25px #0005;
+}
+
+h1 {
+    text-align: center;
+    color: #243b55;
+    font-size: 27px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #666;
+}
+
+label {
+    display: block;
+    margin-top: 25px;
+    font-weight: bold;
+}
+
+textarea {
+    width: 100%;
+    height: 100px;
+    padding: 12px;
+    margin-top: 10px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+    resize: vertical;
+}
+
+button {
+    width: 100%;
+    padding: 14px;
+    margin-top: 15px;
+    background: #243b55;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 17px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #416a91;
+}
+
+h3 {
+    color: #243b55;
+    margin-top: 25px;
+}
+
+pre {
+    background: #f1f5f9;
+    padding: 18px;
+    border-radius: 8px;
+    white-space: pre-wrap;
+    font-size: 16px;
+    line-height: 1.8;
+    min-height: 50px;
+}
+
+.error {
+    color: #c62828;
+}
+
+.footer {
+    text-align: center;
+    color: #777;
+    margin-top: 20px;
+    font-size: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Three Address Code Generator</h1>
+
+<p class="subtitle">
+Compiler Design Mini Project
+</p>
+
+<label for="expression">Enter an Expression:</label>
+
+<textarea id="expression"
+placeholder="Example: a = b + c * d"></textarea>
+
+<button onclick="generateTAC()">Generate TAC</button>
+
+<h3>Three Address Code Output:</h3>
+
+<pre id="output">Your TAC output will appear here...</pre>
+
+<div class="footer">
+    Three Address Code Generator | Compiler Design
+</div>
+
+</div>
+
+<script>
+function generateTAC() {
+    const input = document.getElementById("expression").value.trim();
+    const output = document.getElementById("output");
+
+    if (!input) {
+        output.textContent = "Please enter an expression.";
+        output.className = "error";
+        return;
+    }
+
+    // Supports simple assignments and arithmetic expressions.
+    const match = input.match(
+        /^([A-Za-z_]\w*)\s*=\s*(.+)$/
+    );
+
+    if (!match) {
+        output.textContent =
+            "Invalid expression. Example: a = b + c * d";
+        output.className = "error";
+        return;
+    }
+
+    const variable = match[1];
+    const expression = match[2];
+
+    // Accept identifiers, integers, arithmetic operators and parentheses.
+    if (!/^[A-Za-z0-9_+\-*/%()\s]+$/.test(expression)) {
+        output.textContent = "Invalid characters in expression.";
+        output.className = "error";
+        return;
+    }
+
+    // Tokenize the expression.
+    const tokens = expression.match(
+        /[A-Za-z_]\w*|\d+|[()+\-*/%]/g
+    );
+
+    if (!tokens || tokens.join("") !== expression.replace(/\s/g, "")) {
+        output.textContent = "Invalid expression format.";
+        output.className = "error";
+        return;
+    }
+
+    let position = 0;
+    let tempCount = 1;
+    const code = [];
+
+    function newTemp() {
+        return "t" + tempCount++;
+    }
+
+    function factor() {
+        const token = tokens[position];
+
+        if (!token) {
+            throw new Error("Incomplete expression.");
+        }
+
+        if (token === "(") {
+            position++;
+            const value = expr();
+            if (tokens[position] !== ")") {
+                throw new Error("Missing closing parenthesis.");
+            }
+            position++;
+            return value;
+        }
+
+        if (token === "-" || token === "+") {
+            position++;
+            const value = factor();
+
+            if (token === "+") return value;
+
+            const temp = newTemp();
+            code.push(temp + " = 0 - " + value);
+            return temp;
+        }
+
+        if (/^[A-Za-z_]\w*$/.test(token) || /^\d+$/.test(token)) {
+            position++;
+            return token;
+        }
+
+        throw new Error("Unexpected token: " + token);
+    }
+
+    function term() {
+        let left = factor();
+
+        while (["*", "/", "%"].includes(tokens[position])) {
+            const operator = tokens[position++];
+            const right = factor();
+            const temp = newTemp();
+
+            code.push(temp + " = " + left + " " +
+                      operator + " " + right);
+
+            left = temp;
+        }
+
+        return left;
+    }
+
+    function expr() {
+        let left = term();
+
+        while (["+", "-"].includes(tokens[position])) {
+            const operator = tokens[position++];
+            const right = term();
+            const temp = newTemp();
+
+            code.push(temp + " = " + left + " " +
+                      operator + " " + right);
+
+            left = temp;
+        }
+
+        return left;
+    }
+
+    try {
+        const result = expr();
+
+        if (position !== tokens.length) {
+            throw new Error("Please check the expression.");
+        }
+
+        code.push(variable + " = " + result);
+
+        output.className = "";
+        output.textContent = code.join("\n");
+
+    } catch (error) {
+        output.className = "error";
+        output.textContent = error.message;
+    }
+}
+</script>
+
+</body>
+</html>
